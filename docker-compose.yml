@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: cloud-optimizer-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: cloud_optimizer
+    networks:
+      - cloud-optimizer-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cloud-optimizer-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/cloud_optimizer
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+    depends_on:
+      - mongodb
+    volumes:
+      - ./backend:/app
+      - ./backend/logs:/app/logs
+      - ./backend/models/saved_models:/app/models/saved_models
+    networks:
+      - cloud-optimizer-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cloud-optimizer-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+    networks:
+      - cloud-optimizer-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  cloud-optimizer-network:
+    driver: bridge
