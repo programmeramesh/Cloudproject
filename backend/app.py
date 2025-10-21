@@ -115,10 +115,13 @@ def get_current_metrics():
         current_metrics = monitor.get_current_metrics()
         
         if current_metrics:
-            # Save to database
-            metrics_model.insert_metric(current_metrics)
+            # Make a copy for database
+            metrics_copy = current_metrics.copy()
             
-            # Convert timestamp for JSON
+            # Save to database
+            metrics_model.insert_metric(metrics_copy)
+            
+            # Convert timestamp for JSON (original dict)
             current_metrics['timestamp'] = current_metrics['timestamp'].isoformat()
             
             return jsonify({
@@ -223,7 +226,7 @@ def generate_predictions():
         if len(recent_metrics) < 24:
             return jsonify({
                 'success': False,
-                'message': 'Insufficient historical data for prediction'
+                'message': 'Insufficient historical data for prediction. Need at least 24 data points. Please wait for more metrics to be collected or generate sample data.'
             }), 400
         
         # Try to load model, if not available, return message
@@ -321,18 +324,29 @@ def get_recommendations():
         # Get recent predictions
         recent_predictions = predictions_model.get_latest_predictions(limit=1)
         
-        if not recent_predictions:
-            return jsonify({
-                'success': False,
-                'message': 'No predictions available'
-            }), 400
-        
-        latest_prediction = recent_predictions[0]
-        predictions_data = {
-            'cpu_usage': latest_prediction['predictions'][0] if latest_prediction['predictions'] else 50,
-            'memory_usage': 60,  # Simplified
-            'network_usage': 40
-        }
+        # Use predictions if available, otherwise use current metrics
+        if recent_predictions and recent_predictions[0].get('predictions'):
+            latest_prediction = recent_predictions[0]
+            predictions_data = {
+                'cpu_usage': latest_prediction['predictions'][0] if latest_prediction['predictions'] else 50,
+                'memory_usage': 60,  # Simplified
+                'network_usage': 40
+            }
+        else:
+            # Use current metrics as fallback
+            current_metrics = monitor.get_current_metrics()
+            if current_metrics:
+                predictions_data = {
+                    'cpu_usage': current_metrics.get('cpu_usage', 50),
+                    'memory_usage': current_metrics.get('memory_usage', 60),
+                    'network_usage': current_metrics.get('network_usage', 40)
+                }
+            else:
+                predictions_data = {
+                    'cpu_usage': 50,
+                    'memory_usage': 60,
+                    'network_usage': 40
+                }
         
         # Get current allocation
         current_allocation = cloud_provider.get_current_resources()

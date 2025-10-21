@@ -17,10 +17,16 @@ class WorkloadMonitor:
     def get_current_metrics(self):
         """Get current system metrics"""
         try:
+            import os
+            
             # CPU metrics
-            cpu_percent = psutil.cpu_percent(interval=1)
-            cpu_count = psutil.cpu_count()
-            cpu_freq = psutil.cpu_freq()
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            cpu_count = psutil.cpu_count() or 1
+            try:
+                cpu_freq = psutil.cpu_freq()
+                cpu_frequency = cpu_freq.current if cpu_freq else 0
+            except:
+                cpu_frequency = 0
             
             # Memory metrics
             memory = psutil.virtual_memory()
@@ -29,26 +35,44 @@ class WorkloadMonitor:
             memory_total = memory.total / (1024 ** 3)  # GB
             
             # Disk metrics
-            disk = psutil.disk_usage('/')
-            disk_percent = disk.percent
-            disk_used = disk.used / (1024 ** 3)  # GB
-            disk_total = disk.total / (1024 ** 3)  # GB
+            try:
+                disk_path = 'C:\\' if os.name == 'nt' else '/'
+                disk = psutil.disk_usage(disk_path)
+                disk_percent = disk.percent
+                disk_used = disk.used / (1024 ** 3)  # GB
+                disk_total = disk.total / (1024 ** 3)  # GB
+            except:
+                disk_percent = 0
+                disk_used = 0
+                disk_total = 0
             
             # Network metrics
-            net_io = psutil.net_io_counters()
-            bytes_sent = net_io.bytes_sent / (1024 ** 2)  # MB
-            bytes_recv = net_io.bytes_recv / (1024 ** 2)  # MB
+            try:
+                net_io = psutil.net_io_counters()
+                bytes_sent = net_io.bytes_sent / (1024 ** 2)  # MB
+                bytes_recv = net_io.bytes_recv / (1024 ** 2)  # MB
+                network_usage = self._calculate_network_usage(net_io)
+            except:
+                bytes_sent = 0
+                bytes_recv = 0
+                network_usage = 0
             
             # Disk I/O
-            disk_io = psutil.disk_io_counters()
-            read_bytes = disk_io.read_bytes / (1024 ** 2)  # MB
-            write_bytes = disk_io.write_bytes / (1024 ** 2)  # MB
+            try:
+                disk_io = psutil.disk_io_counters()
+                read_bytes = disk_io.read_bytes / (1024 ** 2)  # MB
+                write_bytes = disk_io.write_bytes / (1024 ** 2)  # MB
+                disk_io_usage = self._calculate_disk_io(disk_io)
+            except:
+                read_bytes = 0
+                write_bytes = 0
+                disk_io_usage = 0
             
             metrics = {
                 'timestamp': datetime.utcnow(),
                 'cpu_usage': cpu_percent,
                 'cpu_count': cpu_count,
-                'cpu_frequency': cpu_freq.current if cpu_freq else 0,
+                'cpu_frequency': cpu_frequency,
                 'memory_usage': memory_percent,
                 'memory_used_gb': round(memory_used, 2),
                 'memory_total_gb': round(memory_total, 2),
@@ -59,14 +83,16 @@ class WorkloadMonitor:
                 'network_recv_mb': round(bytes_recv, 2),
                 'disk_read_mb': round(read_bytes, 2),
                 'disk_write_mb': round(write_bytes, 2),
-                'network_usage': self._calculate_network_usage(net_io),
-                'disk_io': self._calculate_disk_io(disk_io)
+                'network_usage': network_usage,
+                'disk_io': disk_io_usage
             }
             
             return metrics
             
         except Exception as e:
             self.logger.error(f"Error collecting metrics: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return None
     
     def _calculate_network_usage(self, net_io):
@@ -144,16 +170,22 @@ class WorkloadMonitor:
     def get_system_info(self):
         """Get static system information"""
         try:
+            import platform
+            try:
+                boot_time_str = datetime.fromtimestamp(psutil.boot_time()).isoformat()
+            except:
+                boot_time_str = "N/A"
+            
             return {
-                'hostname': psutil.os.uname().nodename,
-                'platform': psutil.os.uname().system,
-                'platform_release': psutil.os.uname().release,
-                'platform_version': psutil.os.uname().version,
-                'architecture': psutil.os.uname().machine,
-                'cpu_count_physical': psutil.cpu_count(logical=False),
-                'cpu_count_logical': psutil.cpu_count(logical=True),
+                'hostname': platform.node(),
+                'platform': platform.system(),
+                'platform_release': platform.release(),
+                'platform_version': platform.version(),
+                'architecture': platform.machine(),
+                'cpu_count_physical': psutil.cpu_count(logical=False) or 1,
+                'cpu_count_logical': psutil.cpu_count(logical=True) or 1,
                 'memory_total_gb': round(psutil.virtual_memory().total / (1024 ** 3), 2),
-                'boot_time': datetime.fromtimestamp(psutil.boot_time()).isoformat()
+                'boot_time': boot_time_str
             }
         except Exception as e:
             self.logger.error(f"Error getting system info: {str(e)}")
