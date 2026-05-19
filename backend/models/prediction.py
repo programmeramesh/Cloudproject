@@ -2,14 +2,20 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import joblib
 import os
 from datetime import datetime, timedelta
+
+# TensorFlow imports - optional
+try:
+    import tensorflow as tf
+    from tensorflow import keras
+    from tensorflow.keras.models import Sequential, load_model
+    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
 
 
 class WorkloadPredictor:
@@ -53,6 +59,9 @@ class WorkloadPredictor:
     
     def build_model(self, input_shape):
         """Build LSTM model architecture"""
+        if not TENSORFLOW_AVAILABLE:
+            raise ImportError("TensorFlow is required for LSTM model. Please install it with: pip install tensorflow")
+        
         model = Sequential([
             LSTM(128, activation='relu', return_sequences=True, 
                  input_shape=input_shape),
